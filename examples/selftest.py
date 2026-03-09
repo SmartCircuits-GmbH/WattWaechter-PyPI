@@ -6,7 +6,7 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-read-token") as client:
+    async with Wattwaechter("192.168.1.100") as client:
         print("Running IR transceiver self-test...")
         result = await client.selftest()
 

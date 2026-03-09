@@ -1,4 +1,7 @@
-"""Example: Update device settings (requires WRITE token)."""
+"""Example: Update device settings.
+
+Note: Modifying settings requires a WRITE token when authentication is enabled.
+"""
 
 import asyncio
 
@@ -6,7 +9,8 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-write-token") as client:
+    # Pass token="your-write-token" if authentication is enabled
+    async with Wattwaechter("192.168.1.100") as client:
         # Toggle LED
         applied = await client.update_settings({"ledEnable": False})
         print(f"Applied: {applied}")

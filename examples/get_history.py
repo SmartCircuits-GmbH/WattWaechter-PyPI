@@ -7,7 +7,7 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-read-token") as client:
+    async with Wattwaechter("192.168.1.100") as client:
         # High-resolution data (15-min intervals) for today
         today = date.today().isoformat()
         print(f"High-res data for {today}:")

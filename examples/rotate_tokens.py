@@ -1,10 +1,12 @@
-"""Example: Rotate API tokens (requires WRITE token).
+"""Example: Rotate API tokens.
 
 The token rotation is a two-phase process:
 1. Generate new tokens (pending for 60 seconds)
 2. Confirm with the new WRITE token to activate them
 
 This prevents lockout if the response to step 1 is lost.
+
+Note: This requires a WRITE token (authentication must be enabled).
 """
 
 import asyncio
@@ -13,7 +15,8 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-current-write-token") as client:
+    # Token rotation requires an existing WRITE token
+    async with Wattwaechter("192.168.1.100", token="your-write-token") as client:
         # Phase 1: Generate new tokens
         result = await client.generate_tokens()
         print(f"New READ token:  {result.token_read}")

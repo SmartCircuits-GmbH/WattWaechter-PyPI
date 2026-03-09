@@ -48,14 +48,17 @@ DEFAULT_TIMEOUT = 10
 class Wattwaechter:
     """Async client for the WattWächter smart meter API.
 
+    Authentication is disabled by default on the device. Pass a token
+    only if authentication has been enabled.
+
     Args:
         host: Hostname or IP address of the device.
-        token: API token (READ or WRITE) for authentication.
+        token: Optional API token (READ or WRITE) for authentication.
         session: Optional aiohttp.ClientSession to reuse.
         request_timeout: Request timeout in seconds.
 
     Example:
-        async with Wattwaechter("192.168.1.100", token="mytoken") as client:
+        async with Wattwaechter("192.168.1.100") as client:
             data = await client.meter_data()
             print(f"Power: {data.power} W")
     """

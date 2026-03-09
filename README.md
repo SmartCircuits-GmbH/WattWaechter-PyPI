@@ -15,7 +15,8 @@ import asyncio
 from aio_wattwaechter import Wattwaechter
 
 async def main():
-    async with Wattwaechter("192.168.1.100", token="your-read-token") as client:
+    # No token needed if authentication is disabled (factory default)
+    async with Wattwaechter("192.168.1.100") as client:
         # Check device connectivity
         alive = await client.alive()
         print(f"Device online: {alive.alive}, firmware: {alive.version}")
@@ -44,7 +45,13 @@ asyncio.run(main())
 
 ## Authentication
 
-The WattWächter device uses two tokens:
+By default, the WattWächter device ships with authentication **disabled**. You can connect without a token:
+
+```python
+client = Wattwaechter("192.168.1.100")
+```
+
+When authentication is enabled on the device, it uses two tokens:
 - **READ token** — for reading data (meter values, settings, diagnostics)
 - **WRITE token** — for modifying settings, starting OTA updates, rebooting
 

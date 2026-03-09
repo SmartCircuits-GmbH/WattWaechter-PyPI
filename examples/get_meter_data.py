@@ -6,7 +6,7 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-read-token") as client:
+    async with Wattwaechter("192.168.1.100") as client:
         data = await client.meter_data()
         if data is None:
             print("No meter data available yet.")

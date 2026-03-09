@@ -1,4 +1,7 @@
-"""Example: Manage custom MQTT CA certificates (requires WRITE token)."""
+"""Example: Manage custom MQTT CA certificates.
+
+Note: Uploading/deleting certificates requires a WRITE token when authentication is enabled.
+"""
 
 import asyncio
 from pathlib import Path
@@ -7,7 +10,8 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-write-token") as client:
+    # Pass token="your-write-token" if authentication is enabled
+    async with Wattwaechter("192.168.1.100") as client:
         # Check current status
         status = await client.mqtt_ca_status()
         print(f"Custom certificate: {'yes' if status.has_custom_cert else 'no'}")

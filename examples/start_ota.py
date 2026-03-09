@@ -1,4 +1,7 @@
-"""Example: Check for and start a firmware update (requires WRITE token)."""
+"""Example: Check for and start a firmware update.
+
+Note: OTA start requires a WRITE token when authentication is enabled.
+"""
 
 import asyncio
 
@@ -6,7 +9,8 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-write-token") as client:
+    # Pass token="your-write-token" if authentication is enabled
+    async with Wattwaechter("192.168.1.100") as client:
         # Check for updates
         ota = await client.ota_check()
         if not ota.data.update_available:

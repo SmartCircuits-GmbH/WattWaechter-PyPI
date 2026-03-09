@@ -6,8 +6,8 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-read-token") as client:
-        # Health check (no auth required)
+    async with Wattwaechter("192.168.1.100") as client:
+        # Health check
         alive = await client.alive()
         print(f"Device alive: {alive.alive}")
         print(f"Firmware:     {alive.version}")

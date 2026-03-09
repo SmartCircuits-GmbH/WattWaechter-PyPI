@@ -1,4 +1,7 @@
-"""Example: Cloud pairing management (requires WRITE token)."""
+"""Example: Cloud pairing management.
+
+Note: Pairing/unpairing requires a WRITE token when authentication is enabled.
+"""
 
 import asyncio
 
@@ -6,7 +9,8 @@ from aio_wattwaechter import Wattwaechter
 
 
 async def main() -> None:
-    async with Wattwaechter("192.168.1.100", token="your-write-token") as client:
+    # Pass token="your-write-token" if authentication is enabled
+    async with Wattwaechter("192.168.1.100") as client:
         # Check current cloud status via settings
         settings = await client.settings()
         print(f"AWS IoT: {'enabled' if settings.aws_iot_enabled else 'disabled'}")
