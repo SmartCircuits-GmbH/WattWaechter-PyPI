@@ -29,10 +29,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/SmartCircuits-GmbH/aio-wattwaechter"
-Documentation = "https://github.com/SmartCircuits-GmbH/aio-wattwaechter"
-Repository = "https://github.com/SmartCircuits-GmbH/aio-wattwaechter"
-Issues = "https://github.com/SmartCircuits-GmbH/aio-wattwaechter/issues"
+Homepage = "https://github.com/SmartCircuits-GmbH/WattWaechter-PyPI"
+Documentation = "https://github.com/SmartCircuits-GmbH/WattWaechter-PyPI"
+Repository = "https://github.com/SmartCircuits-GmbH/WattWaechter-PyPI"
+Issues = "https://github.com/SmartCircuits-GmbH/WattWaechter-PyPI/issues"
 
 [project.optional-dependencies]
 dev = [
