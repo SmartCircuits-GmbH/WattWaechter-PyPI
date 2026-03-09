@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-
 # --- System models ---
 
 
@@ -568,8 +567,8 @@ def _parse_settings(data: dict[str, Any]) -> Settings:
         language=LanguageConfig(
             active=lang.get("active", ""),
             installed=[
-                LanguageEntry(code=l["code"], name=l["name"])
-                for l in lang.get("installed", [])
+                LanguageEntry(code=entry["code"], name=entry["name"])
+                for entry in lang.get("installed", [])
             ],
         ),
         timezone=data.get("timezone", ""),

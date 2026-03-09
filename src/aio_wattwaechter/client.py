@@ -134,7 +134,7 @@ class Wattwaechter:
                         json=json_data,
                         params=params,
                     )
-            except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+            except (TimeoutError, aiohttp.ClientError) as err:
                 raise WattwaechterConnectionError(
                     f"Cannot connect to {self._host}: {err}"
                 ) from err
