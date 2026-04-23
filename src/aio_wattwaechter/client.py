@@ -24,6 +24,8 @@ from .models import (
     LedInfo,
     LowResHistory,
     MeterData,
+    ModbusStatus,
+    MqttStatus,
     OtaCheckResponse,
     SelfTestResult,
     Settings,
@@ -38,6 +40,8 @@ from .models import (
     _parse_led_info,
     _parse_low_res_history,
     _parse_meter_data,
+    _parse_modbus_status,
+    _parse_mqtt_status,
     _parse_ota_check,
     _parse_self_test,
     _parse_settings,
@@ -509,6 +513,31 @@ class Wattwaechter:
         """
         data = await self._request("DELETE", "/mqtt/ca")
         return _parse_ca_cert_action(data)
+
+    # --- MQTT status endpoint ---
+
+    async def mqtt_status(self) -> MqttStatus:
+        """Get the current MQTT connection status.
+
+        GET /api/v1/mqtt/status
+        Returns broker connection state, last error, and reconnect attempts —
+        useful for diagnosing MQTT connection issues.
+        """
+        data = await self._request("GET", "/mqtt/status")
+        return _parse_mqtt_status(data)
+
+    # --- Modbus TCP endpoint ---
+
+    async def modbus_status(self) -> ModbusStatus:
+        """Get the current Modbus TCP server status and register map.
+
+        GET /api/v1/modbus/status
+        Returns whether the Modbus server is enabled/running, the port,
+        active client connections, and the SunSpec register map with
+        current values and OBIS mapping.
+        """
+        data = await self._request("GET", "/modbus/status")
+        return _parse_modbus_status(data)
 
     # --- Cloud pairing endpoints ---
 

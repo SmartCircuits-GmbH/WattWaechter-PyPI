@@ -590,6 +590,171 @@ async def test_mqtt_ca_delete_not_found(mock_api: aioresponses) -> None:
             await client.mqtt_ca_delete()
 
 
+# --- MQTT status endpoint ---
+
+
+async def test_mqtt_status_connected(mock_api: aioresponses) -> None:
+    """Test MQTT status returns MqttStatus with CONNECTED state."""
+    from aio_wattwaechter.models import MqttState
+
+    mock_api.get(
+        f"{BASE_URL}/mqtt/status",
+        payload={
+            "enabled": True,
+            "state": "CONNECTED",
+            "host": "192.168.178.111",
+            "port": 1883,
+            "client_id": "WattWaechter",
+            "use_tls": False,
+            "last_error": 0,
+            "last_error_message": "",
+            "reconnect_attempts": 0,
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="read") as client:
+        result = await client.mqtt_status()
+    assert result.enabled is True
+    assert result.state == MqttState.CONNECTED
+    assert result.connected is True
+    assert result.host == "192.168.178.111"
+    assert result.port == 1883
+    assert result.use_tls is False
+    assert result.last_error == 0
+
+
+async def test_mqtt_status_auth_error(mock_api: aioresponses) -> None:
+    """Test MQTT status with broker auth error (state=WAIT_RETRY)."""
+    from aio_wattwaechter.models import MqttState
+
+    mock_api.get(
+        f"{BASE_URL}/mqtt/status",
+        payload={
+            "enabled": True,
+            "state": "WAIT_RETRY",
+            "host": "192.168.178.111",
+            "port": 1883,
+            "client_id": "WattWaechter",
+            "use_tls": False,
+            "last_error": 5,
+            "last_error_message": "Not authorized",
+            "reconnect_attempts": 2,
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="read") as client:
+        result = await client.mqtt_status()
+    assert result.state == MqttState.WAIT_RETRY
+    assert result.connected is False
+    assert result.last_error == 5
+    assert result.last_error_message == "Not authorized"
+    assert result.reconnect_attempts == 2
+
+
+async def test_mqtt_status_disabled(mock_api: aioresponses) -> None:
+    """Test MQTT status when disabled."""
+    from aio_wattwaechter.models import MqttState
+
+    mock_api.get(
+        f"{BASE_URL}/mqtt/status",
+        payload={
+            "enabled": False,
+            "state": "OFF",
+            "host": "",
+            "port": 1883,
+            "client_id": "",
+            "use_tls": False,
+            "last_error": 0,
+            "last_error_message": "",
+            "reconnect_attempts": 0,
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="read") as client:
+        result = await client.mqtt_status()
+    assert result.enabled is False
+    assert result.state == MqttState.OFF
+    assert result.connected is False
+
+
+# --- Modbus TCP endpoint ---
+
+
+async def test_modbus_status_running(mock_api: aioresponses) -> None:
+    """Test Modbus status returns register map when running."""
+    mock_api.get(
+        f"{BASE_URL}/modbus/status",
+        payload={
+            "enabled": True,
+            "running": True,
+            "port": 502,
+            "active_connections": 1,
+            "registers": [
+                {
+                    "register": 40088,
+                    "name": "W",
+                    "obis": "16.7.0",
+                    "value": -452.0,
+                    "unit": "W",
+                    "valid": True,
+                },
+                {
+                    "register": 40116,
+                    "name": "TotWhImp",
+                    "obis": "1.8.0",
+                    "value": 12345600.0,
+                    "unit": "Wh",
+                    "valid": True,
+                },
+                {
+                    "register": 40073,
+                    "name": "AphA",
+                    "obis": "31.7.0",
+                    "value": None,
+                    "unit": "A",
+                    "valid": False,
+                },
+            ],
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="read") as client:
+        result = await client.modbus_status()
+    assert result.enabled is True
+    assert result.running is True
+    assert result.port == 502
+    assert result.active_connections == 1
+    assert len(result.registers) == 3
+
+    power = result.registers[0]
+    assert power.register == 40088
+    assert power.name == "W"
+    assert power.obis == "16.7.0"
+    assert power.value == -452.0
+    assert power.unit == "W"
+    assert power.valid is True
+
+    # Register not delivered by the meter
+    unused = result.registers[2]
+    assert unused.valid is False
+    assert unused.value is None
+
+
+async def test_modbus_status_disabled(mock_api: aioresponses) -> None:
+    """Test Modbus status when the server is disabled."""
+    mock_api.get(
+        f"{BASE_URL}/modbus/status",
+        payload={
+            "enabled": False,
+            "running": False,
+            "port": 502,
+            "active_connections": 0,
+            "registers": [],
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="read") as client:
+        result = await client.modbus_status()
+    assert result.enabled is False
+    assert result.running is False
+    assert result.registers == []
+
+
 # --- Cloud pairing endpoints ---
 
 
