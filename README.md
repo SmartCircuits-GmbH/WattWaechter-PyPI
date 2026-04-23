@@ -98,7 +98,8 @@ client = Wattwaechter("192.168.1.100", max_retries=1)
 | OTA | `ota_check`, `ota_start` |
 | Settings | `settings`, `update_settings` |
 | Auth | `generate_tokens`, `confirm_tokens`, `setup_token` |
-| MQTT | `mqtt_ca_status`, `mqtt_ca_upload`, `mqtt_ca_delete` |
+| MQTT | `mqtt_ca_status`, `mqtt_ca_upload`, `mqtt_ca_delete`, `mqtt_status` |
+| Modbus TCP | `modbus_status` |
 | Cloud | `cloud_pair`, `cloud_unpair` |
 
 ## Using with Home Assistant

@@ -367,6 +367,66 @@ class CaCertActionResponse:
     bundle_size: int
 
 
+# --- MQTT status models ---
+
+
+class MqttState(StrEnum):
+    """MQTT connection state."""
+
+    OFF = "OFF"
+    INIT = "INIT"
+    CONNECTING = "CONNECTING"
+    CONNECTED = "CONNECTED"
+    WAIT_RETRY = "WAIT_RETRY"
+    FAILED = "FAILED"
+
+
+@dataclass(frozen=True)
+class MqttStatus:
+    """Response from GET /mqtt/status."""
+
+    enabled: bool
+    state: MqttState
+    host: str
+    port: int
+    client_id: str
+    use_tls: bool
+    last_error: int
+    last_error_message: str
+    reconnect_attempts: int
+
+    @property
+    def connected(self) -> bool:
+        """True if MQTT is currently connected to the broker."""
+        return self.state == MqttState.CONNECTED
+
+
+# --- Modbus status models ---
+
+
+@dataclass(frozen=True)
+class ModbusRegisterInfo:
+    """A single Modbus register entry in the status response."""
+
+    register: int
+    name: str
+    obis: str
+    value: float | None
+    unit: str
+    valid: bool
+
+
+@dataclass(frozen=True)
+class ModbusStatus:
+    """Response from GET /modbus/status."""
+
+    enabled: bool
+    running: bool
+    port: int
+    active_connections: int
+    registers: list[ModbusRegisterInfo]
+
+
 # --- Parsing helpers ---
 
 
@@ -609,4 +669,41 @@ def _parse_ca_cert_action(data: dict[str, Any]) -> CaCertActionResponse:
         success=data.get("success", False),
         message=data.get("message", ""),
         bundle_size=data.get("bundle_size", 0),
+    )
+
+
+def _parse_mqtt_status(data: dict[str, Any]) -> MqttStatus:
+    """Parse MQTT status response."""
+    return MqttStatus(
+        enabled=data["enabled"],
+        state=MqttState(data["state"]),
+        host=data.get("host", ""),
+        port=data.get("port", 0),
+        client_id=data.get("client_id", ""),
+        use_tls=data.get("use_tls", False),
+        last_error=data.get("last_error", 0),
+        last_error_message=data.get("last_error_message", ""),
+        reconnect_attempts=data.get("reconnect_attempts", 0),
+    )
+
+
+def _parse_modbus_status(data: dict[str, Any]) -> ModbusStatus:
+    """Parse Modbus TCP status response."""
+    registers = [
+        ModbusRegisterInfo(
+            register=r["register"],
+            name=r.get("name", ""),
+            obis=r.get("obis", ""),
+            value=r.get("value"),
+            unit=r.get("unit", ""),
+            valid=r.get("valid", False),
+        )
+        for r in data.get("registers", [])
+    ]
+    return ModbusStatus(
+        enabled=data["enabled"],
+        running=data["running"],
+        port=data["port"],
+        active_connections=data.get("active_connections", 0),
+        registers=registers,
     )
