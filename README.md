@@ -53,6 +53,29 @@ async def main():
 asyncio.run(main())
 ```
 
+## Gas and water (WattWächter Gas / Wasser)
+
+Gas/water devices (model IDs `ww_gw_mf`, `ww_gw_id`) report full OBIS codes
+(`7-0:3.0.0` gas volume in m³, `7-0:43.0.0` gas flow in m³/h, `8-0:1.0.0`
+water volume, `8-0:2.0.0` water flow). The medium can be switched on the device
+at runtime, which also switches the OBIS codes.
+
+```python
+info = await client.system_info()
+print(info.product_name, info.model_id)  # "WattWächter Gas", "ww_gw_mf"
+
+data = await client.meter_data()
+if data and data.is_volume_meter:
+    print(f"{data.medium}: {data.volume} m³, {data.flow} m³/h")
+    print(f"Sensor ok: {data.gw.ok if data.gw else None}")
+
+history = await client.history_low_res("2024-03-01", 7)
+print(history.unit)  # "m³" on gas/water, "kWh" on electricity
+for day in history.items:
+    print(day.date, day.import_total, day.consumption)
+print(history.consumption)
+```
+
 ## Authentication
 
 By default, the WattWächter device ships with authentication **disabled**. You can connect without a token:
