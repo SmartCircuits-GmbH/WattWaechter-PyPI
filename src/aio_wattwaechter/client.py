@@ -222,7 +222,8 @@ class Wattwaechter:
             )
 
         try:
-            return await resp.json()
+            data: dict[str, Any] = await resp.json()
+            return data
         except (aiohttp.ContentTypeError, ValueError) as err:
             raise WattwaechterConnectionError(
                 f"Invalid JSON response from {path}: {err}"
@@ -323,7 +324,7 @@ class Wattwaechter:
         POST /api/v1/system/reboot
         """
         data = await self._request("POST", "/system/reboot")
-        return data.get("rebooting", False)
+        return bool(data.get("rebooting", False))
 
     # --- History / Meter endpoints ---
 
@@ -417,7 +418,7 @@ class Wattwaechter:
         The device will download, install, and reboot.
         """
         data = await self._request("POST", "/ota/start")
-        return data.get("ok", False)
+        return bool(data.get("ok", False))
 
     # --- Settings endpoints ---
 
@@ -443,7 +444,8 @@ class Wattwaechter:
             The applied settings as echoed by the device.
         """
         data = await self._request("POST", "/settings", json_data=settings)
-        return data.get("applied", {})
+        applied: dict[str, Any] = data.get("applied", {})
+        return applied
 
     # --- Auth endpoints ---
 
@@ -469,7 +471,7 @@ class Wattwaechter:
             "/auth/tokens/confirm",
             json_data={"new_write_token": new_write_token},
         )
-        return data.get("success", False)
+        return bool(data.get("success", False))
 
     async def setup_token(self) -> dict[str, str]:
         """Get initial setup tokens (only before first WiFi connection).
@@ -552,7 +554,7 @@ class Wattwaechter:
         data = await self._request(
             "POST", "/cloud/pair", json_data={"pairing_token": pairing_token}
         )
-        return data.get("success", False)
+        return bool(data.get("success", False))
 
     async def cloud_unpair(self) -> bool:
         """Remove cloud pairing (requires WRITE token).
@@ -560,7 +562,7 @@ class Wattwaechter:
         DELETE /api/v1/cloud/pair
         """
         data = await self._request("DELETE", "/cloud/pair")
-        return data.get("success", False)
+        return bool(data.get("success", False))
 
     # --- Context manager ---
 

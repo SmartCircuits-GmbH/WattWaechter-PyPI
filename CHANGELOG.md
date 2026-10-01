@@ -23,6 +23,8 @@ Gas and water support (WattWächter Gas / Wasser, model IDs `ww_gw_mf` and `ww_g
   `product_name`, `is_gas_water`.
 - `alive()` tolerates unknown and missing keys (the firmware reports only `alive` and
   `version`).
+- The client passes `mypy --strict`; boolean results are always returned as `bool`.
+- Tested on Python 3.14 and aiohttp 3.14.
 
 ## 1.1.0
 
