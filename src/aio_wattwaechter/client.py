@@ -54,6 +54,7 @@ from .models import (
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 10
+OTA_START_TIMEOUT = 30
 
 
 class Wattwaechter:
@@ -89,7 +90,7 @@ class Wattwaechter:
         self._session = session
         self._close_session = False
         self._request_timeout = request_timeout
-        self._max_retries = max_retries
+        self._max_retries = max(1, max_retries)
         self._base_url = f"http://{host}/api/v1"
 
     @property
@@ -119,6 +120,7 @@ class Wattwaechter:
         require_auth: bool = True,
         json_data: dict[str, Any] | None = None,
         params: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> aiohttp.ClientResponse:
         """Execute an HTTP request with automatic retry on 429/503.
 
@@ -130,7 +132,7 @@ class Wattwaechter:
 
         for attempt in range(self._max_retries):
             try:
-                async with asyncio.timeout(self._request_timeout):
+                async with asyncio.timeout(timeout or self._request_timeout):
                     resp = await session.request(
                         method,
                         url,
@@ -158,9 +160,11 @@ class Wattwaechter:
             ) if resp.status == 429 else WattwaechterConnectionError(
                 f"Device busy (503), retry after {wait}s"
             )
+            resp.release()
             await asyncio.sleep(wait)
 
-        raise last_err  # type: ignore[misc]
+        assert last_err is not None
+        raise last_err
 
     def _handle_error_status(self, resp: aiohttp.ClientResponse, path: str) -> None:
         """Raise appropriate exceptions for HTTP error status codes."""
@@ -195,6 +199,7 @@ class Wattwaechter:
         require_auth: bool = True,
         json_data: dict[str, Any] | None = None,
         params: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> dict[str, Any]:
         """Make an API request and return the JSON response.
 
@@ -208,7 +213,7 @@ class Wattwaechter:
         """
         resp = await self._do_request(
             method, path, require_auth=require_auth,
-            json_data=json_data, params=params,
+            json_data=json_data, params=params, timeout=timeout,
         )
 
         if resp.status == 204:
@@ -222,7 +227,8 @@ class Wattwaechter:
             )
 
         try:
-            return await resp.json()
+            data: dict[str, Any] = await resp.json()
+            return data
         except (aiohttp.ContentTypeError, ValueError) as err:
             raise WattwaechterConnectionError(
                 f"Invalid JSON response from {path}: {err}"
@@ -254,7 +260,9 @@ class Wattwaechter:
                 f"Unexpected status {resp.status} from {path}"
             )
 
-        return await resp.text()
+        # Log lines are cut bytewise on the device, which can split a
+        # multibyte character.
+        return await resp.text(errors="replace")
 
     # --- System endpoints ---
 
@@ -286,6 +294,7 @@ class Wattwaechter:
         """Run IR transceiver self-test (~2 seconds).
 
         POST /api/v1/system/selftest
+        Not available on gas/water devices (WattwaechterNotFoundError).
         """
         data = await self._request("POST", "/system/selftest")
         return _parse_self_test(data)
@@ -305,10 +314,14 @@ class Wattwaechter:
         """Get all supported timezones.
 
         GET /api/v1/system/timezones
-        Returns list of TimezoneEntry with name, gmt_offset, daylight_offset.
+        Returns list of TimezoneEntry with name and utc_offset_min.
         """
         resp = await self._do_request("GET", "/system/timezones")
         self._handle_error_status(resp, "/system/timezones")
+        if resp.status != 200:
+            raise WattwaechterConnectionError(
+                f"Unexpected status {resp.status} from /system/timezones"
+            )
         try:
             data = await resp.json()
         except (aiohttp.ContentTypeError, ValueError) as err:
@@ -323,7 +336,7 @@ class Wattwaechter:
         POST /api/v1/system/reboot
         """
         data = await self._request("POST", "/system/reboot")
-        return data.get("rebooting", False)
+        return bool(data.get("rebooting", False))
 
     # --- History / Meter endpoints ---
 
@@ -349,6 +362,14 @@ class Wattwaechter:
         data = await self._request(
             "GET", "/history/highRes", params={"date": date}
         )
+        if not data:
+            return HighResHistory(
+                start=date,
+                days=1,
+                items=[],
+                import_total_kwh=0.0,
+                export_total_kwh=0.0,
+            )
         return _parse_high_res_history(data)
 
     async def history_low_res(self, start: str, days: int) -> LowResHistory:
@@ -364,6 +385,11 @@ class Wattwaechter:
             "GET", "/history/lowRes",
             params={"start": start, "days": str(days)},
         )
+        if not data:
+            # HTTP 204: no daily record in the range.
+            return LowResHistory(
+                start=start, items=[], import_total_kwh=0.0, export_total_kwh=0.0
+            )
         return _parse_low_res_history(data)
 
     # --- Log endpoints ---
@@ -373,6 +399,7 @@ class Wattwaechter:
 
         GET /api/v1/logs/rawdump
         Returns None if no data is available (HTTP 204).
+        Not available on gas/water devices (WattwaechterNotFoundError).
         """
         resp = await self._do_request("GET", "/logs/rawdump")
         if resp.status == 204:
@@ -403,9 +430,10 @@ class Wattwaechter:
     # --- OTA endpoints ---
 
     async def ota_check(self) -> OtaCheckResponse:
-        """Check for firmware updates.
+        """Return the result of the device's last firmware update check.
 
         GET /api/v1/ota/check
+        The device checks for updates on its own; this reads the cached result.
         """
         data = await self._request("GET", "/ota/check")
         return _parse_ota_check(data)
@@ -414,10 +442,14 @@ class Wattwaechter:
         """Start the OTA firmware update (requires WRITE token).
 
         POST /api/v1/ota/start
-        The device will download, install, and reboot.
+        Returns True if the device starts the update: it then downloads,
+        installs and reboots. Returns False if no update is available.
         """
-        data = await self._request("POST", "/ota/start")
-        return data.get("ok", False)
+        # The device asks the update server before it answers.
+        data = await self._request(
+            "POST", "/ota/start", timeout=max(self._request_timeout, OTA_START_TIMEOUT)
+        )
+        return bool(data.get("ok", False) and data.get("update_available", True))
 
     # --- Settings endpoints ---
 
@@ -440,10 +472,13 @@ class Wattwaechter:
             settings: Dictionary of settings to update.
 
         Returns:
-            The applied settings as echoed by the device.
+            The request as echoed by the device. Values the device ignored
+            or adjusted are echoed unchanged; read settings() to see what
+            is actually in effect.
         """
         data = await self._request("POST", "/settings", json_data=settings)
-        return data.get("applied", {})
+        applied: dict[str, Any] = data.get("applied", {})
+        return applied
 
     # --- Auth endpoints ---
 
@@ -469,7 +504,7 @@ class Wattwaechter:
             "/auth/tokens/confirm",
             json_data={"new_write_token": new_write_token},
         )
-        return data.get("success", False)
+        return bool(data.get("success", False))
 
     async def setup_token(self) -> dict[str, str]:
         """Get initial setup tokens (only before first WiFi connection).
@@ -552,7 +587,7 @@ class Wattwaechter:
         data = await self._request(
             "POST", "/cloud/pair", json_data={"pairing_token": pairing_token}
         )
-        return data.get("success", False)
+        return bool(data.get("success", False))
 
     async def cloud_unpair(self) -> bool:
         """Remove cloud pairing (requires WRITE token).
@@ -560,7 +595,7 @@ class Wattwaechter:
         DELETE /api/v1/cloud/pair
         """
         data = await self._request("DELETE", "/cloud/pair")
-        return data.get("success", False)
+        return bool(data.get("success", False))
 
     # --- Context manager ---
 
