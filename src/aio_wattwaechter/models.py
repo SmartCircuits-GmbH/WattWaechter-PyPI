@@ -84,6 +84,7 @@ class LedStatus(StrEnum):
     OK = "OK"
     STARTUP = "STARTUP"
     INFO = "INFO"
+    METER_ATTENTION = "METER_ATTENTION"
     BLE_ACTIVE = "BLE_ACTIVE"
     BLE_CONNECTED = "BLE_CONNECTED"
     OTA_ACTIVE = "OTA_ACTIVE"
@@ -164,8 +165,7 @@ class TimezoneEntry:
     """A supported timezone."""
 
     name: str
-    gmt_offset: int
-    daylight_offset: int
+    utc_offset_min: int
 
 
 # --- History / Meter models ---
@@ -432,7 +432,11 @@ class LowResHistory:
 
 @dataclass(frozen=True)
 class OtaData:
-    """OTA update information."""
+    """OTA update information.
+
+    ``url`` and ``md5`` are deprecated: the device does not report them, so
+    they are always empty. They will be removed in 2.0.
+    """
 
     update_available: bool
     version: str
@@ -609,6 +613,10 @@ class ModbusRegisterInfo:
     value: float | None
     unit: str
     valid: bool
+    raw: int | None = None
+    scale_factor: int | None = None
+    scale_register: int | None = None
+    derived: bool = False
 
 
 @dataclass(frozen=True)
@@ -628,8 +636,8 @@ class ModbusStatus:
 def _parse_alive(data: dict[str, Any]) -> AliveResponse:
     """Parse alive response.
 
-    The firmware reports only ``alive`` and ``version``; unknown keys are
-    ignored and missing ones fall back to defaults.
+    Only ``alive`` and ``version`` are used; other keys the firmware reports
+    are ignored and missing ones fall back to defaults.
     """
     return AliveResponse(
         alive=bool(data.get("alive", False)),
@@ -700,8 +708,7 @@ def _parse_timezones(data: list[dict[str, Any]]) -> list[TimezoneEntry]:
     return [
         TimezoneEntry(
             name=tz["name"],
-            gmt_offset=tz["gmtOffset"],
-            daylight_offset=tz["daylightOffset"],
+            utc_offset_min=tz["utcOffsetMin"],
         )
         for tz in data
     ]
@@ -787,7 +794,7 @@ def _parse_high_res_history(data: dict[str, Any]) -> HighResHistory:
                 export_total_kwh=item.get("export_total_kWh", 0.0),
                 import_kw=item.get("import_kW", 0.0),
                 export_kw=item.get("export_kW", 0.0),
-                power_w=item.get("power_W", 0.0),
+                power_w=float(item.get("power_W", 0.0)),
                 import_total_m3=_optional_float(item, "import_total_m3"),
                 import_m3h=_optional_float(item, "import_m3h"),
                 flow_m3h=_optional_float(item, "flow_m3h"),
@@ -958,6 +965,10 @@ def _parse_modbus_status(data: dict[str, Any]) -> ModbusStatus:
             value=r.get("value"),
             unit=r.get("unit", ""),
             valid=r.get("valid", False),
+            raw=r.get("raw"),
+            scale_factor=r.get("scale_factor"),
+            scale_register=r.get("scale_register"),
+            derived=r.get("derived", False),
         )
         for r in data.get("registers", [])
     ]

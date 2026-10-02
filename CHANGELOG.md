@@ -26,6 +26,29 @@ Gas and water support (WattWächter Gas / Wasser, model IDs `ww_gw_mf` and `ww_g
 - The client passes `mypy --strict`; boolean results are always returned as `bool`.
 - Tested on Python 3.14 and aiohttp 3.14.
 
+Fixes from an audit of the client against the firmware API:
+
+- **Breaking:** `TimezoneEntry` now has `name` and `utc_offset_min` (minutes), which is
+  what the firmware reports. The previous fields `gmt_offset` and `daylight_offset`
+  never existed in the API, so `timezones()` always raised `KeyError`.
+- `LedStatus.METER_ATTENTION` added; `led()` raised `ValueError` when the device
+  reported it.
+- `history_low_res()` and `history_high_res()` return an empty history when the device
+  has no data for the range (HTTP 204) instead of raising `KeyError`.
+- `ota_start()` returns `False` when the device reports that no update is available;
+  it returned `True` before. It also waits up to 30 seconds, because the device asks
+  the update server before it answers.
+- `OtaData.url` and `OtaData.md5` are deprecated. The firmware never reports them, so
+  they are always empty. They will be removed in 2.0.
+- `ModbusRegisterInfo`: new `raw`, `scale_factor`, `scale_register` and `derived`.
+- `logs_ram()` and `logs_persistent()` no longer raise `UnicodeDecodeError` on a log
+  line that was cut inside a multibyte character.
+- `max_retries=0` is treated as a single attempt instead of raising `TypeError`.
+- `AccessPointConfig`, `LanguageConfig` and `LanguageEntry` are exported.
+- Documented: `selftest()` and `logs_rawdump()` are not available on gas/water devices,
+  `ota_check()` returns the cached result of the device's own check, and
+  `update_settings()` returns an echo of the request.
+
 ## 1.1.0
 
 - `modbus_status()` and `mqtt_status()` endpoints.
