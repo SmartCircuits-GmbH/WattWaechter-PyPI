@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 (unreleased)
+## 1.2.0
 
 Gas and water support (WattWächter Gas / Wasser, model IDs `ww_gw_mf` and `ww_gw_id`).
 
