@@ -130,17 +130,17 @@ async def test_timezones(mock_api: aioresponses) -> None:
     mock_api.get(
         f"{BASE_URL}/system/timezones",
         payload=[
-            {"name": "Europe/Berlin", "gmtOffset": 3600, "daylightOffset": 3600},
-            {"name": "America/New_York", "gmtOffset": -18000, "daylightOffset": 3600},
+            {"name": "Europe/Berlin", "utcOffsetMin": 60},
+            {"name": "America/New_York", "utcOffsetMin": -300},
         ],
     )
     async with Wattwaechter("192.168.1.100", token="test") as client:
         result = await client.timezones()
     assert len(result) == 2
     assert result[0].name == "Europe/Berlin"
-    assert result[0].gmt_offset == 3600
-    assert result[0].daylight_offset == 3600
+    assert result[0].utc_offset_min == 60
     assert result[1].name == "America/New_York"
+    assert result[1].utc_offset_min == -300
 
 
 async def test_reboot(mock_api: aioresponses) -> None:
@@ -373,11 +373,27 @@ async def test_ota_start(mock_api: aioresponses) -> None:
     """Test OTA start endpoint."""
     mock_api.post(
         f"{BASE_URL}/ota/start",
-        payload={"ok": True, "msg": "OTA started"},
+        payload={
+            "ok": True,
+            "update_available": True,
+            "version": "1.3.0",
+            "rebooting": True,
+        },
     )
     async with Wattwaechter("192.168.1.100", token="write") as client:
         result = await client.ota_start()
     assert result is True
+
+
+async def test_ota_start_no_update(mock_api: aioresponses) -> None:
+    """Test OTA start returns False when the device has no update to install."""
+    mock_api.post(
+        f"{BASE_URL}/ota/start",
+        payload={"ok": True, "update_available": False},
+    )
+    async with Wattwaechter("192.168.1.100", token="write") as client:
+        result = await client.ota_start()
+    assert result is False
 
 
 # --- Settings endpoints ---
@@ -817,10 +833,10 @@ async def test_not_found_error(mock_api: aioresponses) -> None:
 
 async def test_payload_too_large_error(mock_api: aioresponses) -> None:
     """Test 413 raises WattwaechterPayloadTooLargeError."""
-    mock_api.post(f"{BASE_URL}/mqtt/ca", status=413)
+    mock_api.post(f"{BASE_URL}/settings", status=413)
     async with Wattwaechter("192.168.1.100", token="write") as client:
         with pytest.raises(WattwaechterPayloadTooLargeError):
-            await client.mqtt_ca_upload("x" * 5000)
+            await client.update_settings({"device_name": "x" * 5000})
 
 
 async def test_rate_limit_error(mock_api: aioresponses) -> None:
@@ -999,3 +1015,131 @@ async def test_host_property() -> None:
     client = Wattwaechter("192.168.1.100")
     assert client.host == "192.168.1.100"
     await client.close()
+
+
+# --- Firmware behaviour found by the API audit ---
+
+
+async def test_led_meter_attention(mock_api: aioresponses) -> None:
+    """Test the METER_ATTENTION status (meter waits for the customer)."""
+    mock_api.get(
+        f"{BASE_URL}/system/led",
+        payload={
+            "status": "METER_ATTENTION",
+            "priority": 4,
+            "color": "yellow",
+            "mode": "pulse",
+            "rgb": {"r": 255, "g": 255, "b": 0},
+            "enabled": True,
+            "active_statuses": ["METER_ATTENTION"],
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.led()
+    assert result.status is LedStatus.METER_ATTENTION
+
+
+async def test_timezones_unexpected_status(mock_api: aioresponses) -> None:
+    """Test timezones raises on a server error instead of parsing the body."""
+    mock_api.get(f"{BASE_URL}/system/timezones", status=500)
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        with pytest.raises(WattwaechterConnectionError, match="Unexpected status"):
+            await client.timezones()
+
+
+async def test_history_low_res_no_data(mock_api: aioresponses) -> None:
+    """Test low-res history returns an empty history on HTTP 204."""
+    mock_api.get(
+        f"{BASE_URL}/history/lowRes?start=2026-01-01&days=7",
+        status=204,
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.history_low_res("2026-01-01", 7)
+    assert result.start == "2026-01-01"
+    assert result.items == []
+    assert result.consumption == 0.0
+
+
+async def test_history_high_res_no_data(mock_api: aioresponses) -> None:
+    """Test high-res history returns an empty history on HTTP 204."""
+    mock_api.get(
+        f"{BASE_URL}/history/highRes?date=2026-01-01",
+        status=204,
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.history_high_res("2026-01-01")
+    assert result.start == "2026-01-01"
+    assert result.days == 1
+    assert result.items == []
+
+
+async def test_max_retries_zero_still_sends_request(mock_api: aioresponses) -> None:
+    """Test max_retries=0 behaves like a single attempt."""
+    mock_api.get(
+        f"{BASE_URL}/system/alive",
+        payload={"alive": True, "version": "1.3.0"},
+    )
+    async with Wattwaechter("192.168.1.100", max_retries=0) as client:
+        result = await client.alive()
+    assert result.alive is True
+
+
+async def test_logs_ram_invalid_utf8(mock_api: aioresponses) -> None:
+    """Test a log line cut inside a multibyte character does not raise."""
+    mock_api.get(
+        f"{BASE_URL}/logs/ram",
+        body="unix_time,level,message\n1,I,0.5 m".encode() + b"\xc2",
+        content_type="text/csv; charset=utf-8",
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.logs_ram()
+    assert result.startswith("unix_time,level,message")
+    assert "0.5 m" in result
+
+
+async def test_modbus_status_register_details(mock_api: aioresponses) -> None:
+    """Test the raw register fields of the Modbus status are parsed."""
+    mock_api.get(
+        f"{BASE_URL}/modbus/status",
+        payload={
+            "enabled": True,
+            "running": True,
+            "port": 502,
+            "active_connections": 0,
+            "registers": [
+                {
+                    "register": 41010,
+                    "name": "Vol",
+                    "obis": "7-0:3.0.0",
+                    "value": 1234.567,
+                    "unit": "m³",
+                    "valid": True,
+                    "raw": 1234567,
+                    "scale_factor": -3,
+                    "scale_register": 41020,
+                    "derived": False,
+                },
+                {
+                    "register": 41014,
+                    "name": "Ene",
+                    "obis": "",
+                    "value": None,
+                    "unit": "",
+                    "valid": False,
+                    "raw": 0,
+                    "scale_factor": 0,
+                    "scale_register": 0,
+                    "derived": True,
+                },
+            ],
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.modbus_status()
+    volume, energy = result.registers
+    assert volume.raw == 1234567
+    assert volume.scale_factor == -3
+    assert volume.scale_register == 41020
+    assert volume.derived is False
+    assert energy.derived is True
+    assert energy.value is None

@@ -14,9 +14,9 @@ async def main() -> None:
         timezones = await client.timezones()
         print(f"Supported timezones ({len(timezones)}):\n")
         for tz in timezones:
-            gmt_hours = tz.gmt_offset / 3600
-            dst_hours = tz.daylight_offset / 3600
-            print(f"  {tz.name:<30} GMT{gmt_hours:+.0f}  DST{dst_hours:+.0f}")
+            hours, minutes = divmod(abs(tz.utc_offset_min), 60)
+            sign = "-" if tz.utc_offset_min < 0 else "+"
+            print(f"  {tz.name:<30} UTC{sign}{hours:02d}:{minutes:02d}")
 
 
 asyncio.run(main())

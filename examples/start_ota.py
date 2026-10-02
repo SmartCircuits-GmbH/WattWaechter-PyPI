@@ -25,8 +25,10 @@ async def main() -> None:
 
         confirm = input("Start update? (y/N): ")
         if confirm.lower() == "y":
-            await client.ota_start()
-            print("OTA update started. Device will reboot when done.")
+            if await client.ota_start():
+                print("OTA update started. Device will reboot when done.")
+            else:
+                print("The device reports no update to install.")
         else:
             print("Update cancelled.")
 
