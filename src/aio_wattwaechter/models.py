@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -214,6 +215,10 @@ class GwStatus:
     active_coils: int
     energy_factor: float
     raw: dict[str, Any]
+    meter_since: datetime | None = None
+    """Start of the current meter reading (UTC): the first reading entry or the
+    last meter exchange. A correction of the reading keeps it. ``None`` on
+    firmware before 1.3.0 or when unknown."""
 
 
 @dataclass(frozen=True)
@@ -734,7 +739,18 @@ def _parse_gw_status(data: dict[str, Any]) -> GwStatus:
         active_coils=int(data.get("activeCoils", 0)),
         energy_factor=float(data.get("energyFactor", 0.0)),
         raw=dict(data),
+        meter_since=_parse_unix_time(data.get("meterSince")),
     )
+
+
+def _parse_unix_time(value: object) -> datetime | None:
+    """Parse a positive unix timestamp into an aware UTC datetime."""
+    if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(value, tz=UTC)
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def _parse_meter_data(data: dict[str, Any]) -> MeterData:

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from aioresponses import aioresponses
+import pytest
 
 from aio_wattwaechter import (
     OBIS_GAS_FLOW,
@@ -335,3 +338,50 @@ async def test_history_low_res_electricity_consumption(
     assert result.consumption == 8.5
     assert result.items[0].import_total == 12340.0
     assert result.items[0].consumption == 8.5
+
+
+# --- meterSince (firmware 1.3.0) ---
+
+
+@pytest.mark.parametrize(
+    ("meter_since", "expected"),
+    [
+        (1792800000, datetime(2026, 10, 24, tzinfo=UTC)),
+        (None, None),
+        (0, None),
+        (-5, None),
+        ("1792800000", None),
+        (True, None),
+    ],
+)
+async def test_meter_data_meter_since(
+    mock_api: aioresponses, meter_since: object, expected: datetime | None
+) -> None:
+    """Test meterSince of the gw block becomes an aware UTC datetime."""
+    mock_api.get(
+        f"{BASE_URL}/history/latest",
+        payload={
+            "timestamp": 1792842845,
+            "datetime": "2026-10-24T13:54:05",
+            "gw": {**GW_STATUS, "meterSince": meter_since},
+            OBIS_GAS_VOLUME: {"value": 12.5, "unit": "m³", "name": "Meter Reading"},
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.meter_data()
+    assert result is not None
+    assert result.gw is not None
+    assert result.gw.meter_since == expected
+
+
+async def test_meter_data_without_meter_since(mock_api: aioresponses) -> None:
+    """Test firmware before 1.3.0 without meterSince."""
+    mock_api.get(
+        f"{BASE_URL}/history/latest",
+        payload={"timestamp": 1, "datetime": "x", "gw": GW_STATUS},
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.meter_data()
+    assert result is not None
+    assert result.gw is not None
+    assert result.gw.meter_since is None
