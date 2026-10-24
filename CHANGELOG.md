@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+
+- `GwStatus.meter_since`: start of the current meter reading as an aware UTC
+  `datetime` (`meterSince` of the `gw` block, firmware 1.3.0): the first reading
+  entry or the last meter exchange. A correction of the reading keeps it. `None`
+  on older firmware or when unknown. Suited as `last_reset` of a `total` sensor.
+
 ## 1.2.0
 
 Gas and water support (WattWächter Gas / Wasser, model IDs `ww_gw_mf` and `ww_gw_id`).
