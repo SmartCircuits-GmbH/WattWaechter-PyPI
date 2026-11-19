@@ -79,8 +79,13 @@ class SystemInfo:
 
 
 class LedStatus(StrEnum):
-    """LED status codes."""
+    """LED status codes.
 
+    A status this library does not know yet (newer firmware) parses as
+    ``UNKNOWN`` instead of raising ``ValueError``.
+    """
+
+    UNKNOWN = "UNKNOWN"
     NONE = "NONE"
     OK = "OK"
     STARTUP = "STARTUP"
@@ -90,12 +95,20 @@ class LedStatus(StrEnum):
     BLE_CONNECTED = "BLE_CONNECTED"
     OTA_ACTIVE = "OTA_ACTIVE"
     ERROR = "ERROR"
+    ADAPTER_FAULT = "ADAPTER_FAULT"
+    """Gas/water devices, firmware 1.3.3: the sensor adapter is missing or
+    belongs to the other GW variant. The LED blinks red fast."""
     RESET_PENDING = "RESET_PENDING"
+
+    @classmethod
+    def _missing_(cls, value: object) -> LedStatus:
+        return cls.UNKNOWN
 
 
 class LedColor(StrEnum):
-    """LED colors."""
+    """LED colors. Unknown colors parse as ``UNKNOWN``."""
 
+    UNKNOWN = "unknown"
     OFF = "off"
     GREEN = "green"
     YELLOW = "yellow"
@@ -103,14 +116,25 @@ class LedColor(StrEnum):
     MAGENTA = "magenta"
     RED = "red"
 
+    @classmethod
+    def _missing_(cls, value: object) -> LedColor:
+        return cls.UNKNOWN
+
 
 class LedMode(StrEnum):
-    """LED display modes."""
+    """LED display modes. Unknown modes parse as ``UNKNOWN``."""
 
+    UNKNOWN = "unknown"
     SOLID = "solid"
     PULSE = "pulse"
+    BLINK = "blink"
+    """Fast on/off (``ADAPTER_FAULT``, firmware 1.3.3)."""
     DIMMED = "dimmed"
     OFF = "off"
+
+    @classmethod
+    def _missing_(cls, value: object) -> LedMode:
+        return cls.UNKNOWN
 
 
 @dataclass(frozen=True)
@@ -219,6 +243,10 @@ class GwStatus:
     """Start of the current meter reading (UTC): the first reading entry or the
     last meter exchange. A correction of the reading keeps it. ``None`` on
     firmware before 1.3.0 or when unknown."""
+    adapter_fault: str | None = None
+    """``"wrong"`` or ``"missing"`` when the sensor adapter does not match the
+    board (firmware 1.3.3, ``adapter`` of the ``gw`` block); ``None`` when it
+    matches or on older firmware."""
 
 
 @dataclass(frozen=True)
@@ -740,7 +768,13 @@ def _parse_gw_status(data: dict[str, Any]) -> GwStatus:
         energy_factor=float(data.get("energyFactor", 0.0)),
         raw=dict(data),
         meter_since=_parse_unix_time(data.get("meterSince")),
+        adapter_fault=_parse_adapter_fault(data.get("adapter")),
     )
+
+
+def _parse_adapter_fault(value: object) -> str | None:
+    """Adapter fault of the ``gw`` block, ``None`` when absent or empty."""
+    return value if isinstance(value, str) and value else None
 
 
 def _parse_unix_time(value: object) -> datetime | None:
