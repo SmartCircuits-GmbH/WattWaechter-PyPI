@@ -82,6 +82,50 @@ async def test_led(mock_api: aioresponses) -> None:
     assert result.enabled is True
 
 
+async def test_led_adapter_fault(mock_api: aioresponses) -> None:
+    """GW with a missing or wrong sensor adapter (firmware 1.3.3)."""
+    mock_api.get(
+        f"{BASE_URL}/system/led",
+        payload={
+            "status": "ADAPTER_FAULT",
+            "priority": 9,
+            "color": "red",
+            "mode": "blink",
+            "rgb": {"r": 255, "g": 0, "b": 0},
+            "enabled": True,
+            "active_statuses": {"ok": True, "error": True, "adapter_fault": True},
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.led()
+    assert result.status == LedStatus.ADAPTER_FAULT
+    assert result.mode == LedMode.BLINK
+    assert result.color == LedColor.RED
+    assert result.active_statuses["adapter_fault"] is True
+
+
+async def test_led_unknown_values(mock_api: aioresponses) -> None:
+    """Values from newer firmware parse as UNKNOWN instead of raising."""
+    mock_api.get(
+        f"{BASE_URL}/system/led",
+        payload={
+            "status": "SOMETHING_NEW",
+            "priority": 11,
+            "color": "cyan",
+            "mode": "strobe",
+            "rgb": {"r": 0, "g": 255, "b": 255},
+            "enabled": True,
+            "active_statuses": {},
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.led()
+    assert result.status == LedStatus.UNKNOWN
+    assert result.color == LedColor.UNKNOWN
+    assert result.mode == LedMode.UNKNOWN
+    assert result.priority == 11
+
+
 async def test_selftest(mock_api: aioresponses) -> None:
     """Test self-test endpoint."""
     mock_api.post(
