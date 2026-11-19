@@ -385,3 +385,48 @@ async def test_meter_data_without_meter_since(mock_api: aioresponses) -> None:
     assert result is not None
     assert result.gw is not None
     assert result.gw.meter_since is None
+
+
+# --- adapter (firmware 1.3.3) ---
+
+
+@pytest.mark.parametrize(
+    ("adapter", "expected"),
+    [
+        ("wrong", "wrong"),
+        ("missing", "missing"),
+        ("", None),
+        (None, None),
+        (1, None),
+    ],
+)
+async def test_meter_data_adapter_fault(
+    mock_api: aioresponses, adapter: object, expected: str | None
+) -> None:
+    """Test the adapter field of the gw block (missing or wrong sensor adapter)."""
+    mock_api.get(
+        f"{BASE_URL}/history/latest",
+        payload={
+            "timestamp": 1,
+            "datetime": "x",
+            "gw": {**GW_STATUS, "adapter": adapter},
+        },
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.meter_data()
+    assert result is not None
+    assert result.gw is not None
+    assert result.gw.adapter_fault == expected
+
+
+async def test_meter_data_without_adapter(mock_api: aioresponses) -> None:
+    """Matching adapter or firmware before 1.3.3: no adapter field."""
+    mock_api.get(
+        f"{BASE_URL}/history/latest",
+        payload={"timestamp": 1, "datetime": "x", "gw": GW_STATUS},
+    )
+    async with Wattwaechter("192.168.1.100", token="test") as client:
+        result = await client.meter_data()
+    assert result is not None
+    assert result.gw is not None
+    assert result.gw.adapter_fault is None

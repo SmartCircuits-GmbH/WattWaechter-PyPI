@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0
+
+- `LedStatus.ADAPTER_FAULT` and `LedMode.BLINK` (firmware 1.3.3): a gas/water device
+  whose sensor adapter is missing or belongs to the other GW variant blinks red fast.
+  `led()` raised `ValueError` on such a device.
+- `LedStatus`, `LedColor` and `LedMode` parse values they do not know (newer firmware)
+  as `UNKNOWN` instead of raising `ValueError`.
+- `GwStatus.adapter_fault`: `"wrong"` or `"missing"` while the adapter does not match
+  the board (`adapter` of the `gw` block, firmware 1.3.3); `None` when it matches or on
+  older firmware.
+
 ## 1.3.0
 
 - `GwStatus.meter_since`: start of the current meter reading as an aware UTC
