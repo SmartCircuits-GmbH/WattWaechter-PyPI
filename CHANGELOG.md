@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.3.3
+
+Matches WattWächter firmware 1.3.3.
 
 - `LedStatus.ADAPTER_FAULT` and `LedMode.BLINK` (firmware 1.3.3): a gas/water device
   whose sensor adapter is missing or belongs to the other GW variant blinks red fast.
